@@ -126,55 +126,62 @@ test_accuracy = clf.score(X_test, y_test)
 print(f"Test Accuracy: {test_accuracy:.4f}")
 # Prints the accuracy on the test set to understand the model's performance on unseen data
 # ------------------------------------------------------------ #
-pred_num_col = [
-    'age', 'bilirubin', 'alk_phosphate', 'sgot', 'albumin', 'protime'
+import dash
+from dash import dcc
+from dash import html
+from dash.dependencies import Input, Output
+import plotly.express as px
+import plotly.graph_objects as go
+
+pred_cat_cols = [
+    'steroid_True', 'antivirals_True', 'fatigue_True', 'malaise_True', 'anorexia_True',
+    'liver_big_True', 'liver_firm_True', 'spleen_palpable_True', 'spiders_True',
+    'ascites_True', 'varices_True', 'histology_True', 'sex_male'
 ]
 
 
-
-logit_model = sm.Logit(df['class_live'], sm.add_constant(df[pred_num_col]))
-result = logit_model.fit()
-
-
-app = dash.Dash(__name__)
-
+app = dash.Dash(__name__)  
 server = app.server
-
 app.layout = html.Div([
-    html.H1("Numerical Data - LR"),
+    html.H1("Categorical Data - LR"),
 
     dcc.Dropdown(
-        id='predictor-dropdown',
-        options=[{'label': col, 'value': col} for col in pred_num_col],
-        value='age',
+        id='feature-dropdown',
+        options=[{'label': col, 'value': col} for col in pred_cat_cols],
+        value='steroid_True',
         style={'width': '50%'}
     ),
 
-    dcc.Graph(id='probability-plot'),
+    dcc.Graph(id='percentage-bar-chart'),
 ])
 
 @app.callback(
-    Output('probability-plot', 'figure'),
-    [Input('predictor-dropdown', 'value')]
+    Output('percentage-bar-chart', 'figure'),
+    [Input('feature-dropdown', 'value')]
 )
-def update_plots(selected_predictor):
-    prob_live = result.predict(sm.add_constant(df[pred_num_col]))
-    df['prob_live'] = prob_live
-    prob_die = 1 - prob_live
-    df['prob_die'] = prob_die
+def update_percentage_chart(selected_feature):
+    try:
+        if selected_feature not in df.columns:
+            raise ValueError(f"Selected feature '{selected_feature}' not found in the data frame .")
 
-    df['class_live_color'] = df['class_live'].map({1: 'live', 0: 'die'})
-    probability_fig = px.scatter(
-        df,
-        x=selected_predictor,
-        y='prob_live' if selected_predictor != 'sex_male' else 'prob_die',
-        color='class_live_color',
-        labels={'x': selected_predictor, 'y': 'Probability of Death'},
-        title=f'Probability Plot: {selected_predictor} vs. class_live'
-    )
+        percentage_df = df.groupby([selected_feature, 'class_live_color']).size().unstack(fill_value=0).reset_index()
+        percentage_df['Total'] = percentage_df['die'] + percentage_df['live']
+        percentage_df['Die_Percentage'] = (percentage_df['die'] / percentage_df['Total']) * 100
+        percentage_df['Live_Percentage'] = (percentage_df['live'] / percentage_df['Total']) * 100
 
-    return probability_fig
+        fig = px.bar(
+            percentage_df,
+            x=selected_feature,
+            y=['Live_Percentage', 'Die_Percentage'],
+            labels={'variable': 'Percentage', 'value': 'Percentage of live and die'},
+            title=f'Percentage of People who Die and Live with Respect to {selected_feature}',
+            barmode='stack'
+        )
 
+        return fig
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return px.bar()
 
-if __name__ == '__main__':
-    app.run_server(jupyter_mode = 'external', debug=True, port=8051)
+if __name__ == '__main__': 
+    app.run_server(jupyter_mode = 'external', debug=True, port = 8052)
