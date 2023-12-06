@@ -163,7 +163,8 @@ def update_percentage_chart(selected_feature):
     try:
         if selected_feature not in df.columns:
             raise ValueError(f"Selected feature '{selected_feature}' not found in the data frame .")
-
+            
+        df['class_live_color'] = df['class_live'].map({1: 'live', 0: 'die'})
         percentage_df = df.groupby([selected_feature, 'class_live_color']).size().unstack(fill_value=0).reset_index()
         percentage_df['Total'] = percentage_df['die'] + percentage_df['live']
         percentage_df['Die_Percentage'] = (percentage_df['die'] / percentage_df['Total']) * 100
